@@ -1,0 +1,22 @@
+id: basic-component
+name: Basic component
+category: Basic
+version: 1.0.0
+description: >-
+  An empty but well-formed repository: README, ownership, contribution
+  guide, a decision log and a CI workflow that grows with the code. Start
+  here when no other template fits.
+tags: [basic, repository, starter, ci, adr]
+parameters:
+  - name: owner
+    description: GitHub user or team that owns the repo, e.g. @acme/payments (leave empty to skip CODEOWNERS)
+    default: ""
+  - name: summary
+    description: One sentence on what this component does
+    default: "TODO: describe what this component does and who uses it."
+targets:
+  any:
+    layers: [_shared/gitignore]
+    summary: Repository skeleton with CI, ownership and a decision log
+    resources: [README, CODEOWNERS, CI workflow, Decision log]
+    requires: [git]

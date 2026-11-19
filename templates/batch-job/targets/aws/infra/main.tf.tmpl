@@ -1,0 +1,106 @@
+variable "image_tag" {
+  description = "Tag in the ECR repository that the task runs"
+  type        = string
+  default     = "latest"
+}
+
+variable "cpu" {
+  type    = number
+  default = 256
+}
+
+variable "memory" {
+  type    = number
+  default = 512
+}
+
+resource "aws_ecr_repository" "app" {
+  name                 = var.name
+  image_tag_mutability = "MUTABLE" # the task follows a moving tag
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecs_cluster" "this" {
+  name = var.name
+}
+
+resource "aws_cloudwatch_log_group" "job" {
+  name              = "/ecs/${var.name}"
+  retention_in_days = 30
+}
+
+locals {
+  assume_ecs_tasks = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+    }]
+  })
+}
+
+# Used by ECS itself to pull the image and write logs.
+resource "aws_iam_role" "execution" {
+  name               = "${var.name}-execution"
+  assume_role_policy = local.assume_ecs_tasks
+}
+
+resource "aws_iam_role_policy_attachment" "execution" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# The identity your job code runs as. Attach only what the job needs.
+resource "aws_iam_role" "task" {
+  name               = "${var.name}-task"
+  assume_role_policy = local.assume_ecs_tasks
+}
+
+resource "aws_ecs_task_definition" "job" {
+  family                   = var.name
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.cpu
+  memory                   = var.memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([{
+    name      = "job"
+    image     = "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
+    essential = true
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.job.name
+        awslogs-region        = var.region
+        awslogs-stream-prefix = "job"
+      }
+    }
+  }])
+}
+
+output "ecr_repository_url" {
+  value = aws_ecr_repository.app.repository_url
+}
+
+output "cluster" {
+  value = aws_ecs_cluster.this.name
+}
+
+output "task_definition" {
+  value = aws_ecs_task_definition.job.family
+}
+
+output "task_role_name" {
+  value = aws_iam_role.task.name
+}

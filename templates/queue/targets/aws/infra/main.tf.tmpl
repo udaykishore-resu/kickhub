@@ -1,0 +1,35 @@
+variable "max_deliveries" {
+  description = "Delivery attempts before a message moves to the dead-letter queue"
+  type        = number
+  default     = 5
+}
+
+resource "aws_sqs_queue" "dlq" {
+  name                      = "${var.name}-dlq"
+  message_retention_seconds = 1209600 # 14 days to inspect poison messages
+  sqs_managed_sse_enabled   = true
+}
+
+resource "aws_sqs_queue" "main" {
+  name                       = var.name
+  visibility_timeout_seconds = 60
+  receive_wait_time_seconds  = 20
+  sqs_managed_sse_enabled    = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.dlq.arn
+    maxReceiveCount     = var.max_deliveries
+  })
+}
+
+output "queue_url" {
+  value = aws_sqs_queue.main.url
+}
+
+output "queue_arn" {
+  value = aws_sqs_queue.main.arn
+}
+
+output "dlq_url" {
+  value = aws_sqs_queue.dlq.url
+}

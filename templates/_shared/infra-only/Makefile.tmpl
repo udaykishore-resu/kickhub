@@ -1,0 +1,26 @@
+[[ if eq .Target "local" -]]
+.PHONY: up down logs
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down
+
+logs:
+	docker compose logs -f
+[[- else -]]
+.PHONY: infra-init infra-plan infra-apply infra-destroy
+
+infra-init:
+	terraform -chdir=infra init
+
+infra-plan: infra-init
+	terraform -chdir=infra plan
+
+infra-apply: infra-init
+	terraform -chdir=infra apply
+
+infra-destroy: infra-init
+	terraform -chdir=infra destroy
+[[- end ]]

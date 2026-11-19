@@ -1,0 +1,14 @@
+resource "google_project_service" "pubsub" {
+  service            = "pubsub.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_pubsub_topic" "this" {
+  name                       = var.name
+  message_retention_duration = "86400s"
+  depends_on                 = [google_project_service.pubsub]
+}
+
+output "topic" {
+  value = google_pubsub_topic.this.id
+}

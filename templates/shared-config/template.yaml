@@ -1,0 +1,26 @@
+id: shared-config
+name: Shared Terraform state backend
+category: Other
+version: 1.0.0
+description: >-
+  The remote state backend every other component points at: versioned, encrypted, with state locking. Create it once per account or project.
+tags: [terraform, state, backend, configuration]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+targets:
+  aws:
+    summary: S3 state bucket with a DynamoDB lock table
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [S3 bucket, DynamoDB lock table]
+    requires: [terraform, aws]
+    notes: >-
+      After `make infra-apply`, run `terraform -chdir=infra output -raw backend_config` and paste the block into the `terraform {}` section of each component.
+  gcp:
+    summary: Cloud Storage state bucket with versioning
+    layers: [_shared/infra-only, _shared/tf-gcp]
+    resources: [Cloud Storage bucket]
+    requires: [terraform, gcloud]
+    notes: >-
+      After `make infra-apply`, run `terraform -chdir=infra output -raw backend_config` and paste the block into the `terraform {}` section of each component.

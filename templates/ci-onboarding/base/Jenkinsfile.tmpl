@@ -1,0 +1,38 @@
+// Mirrors .github/workflows/ci.yml for teams that build on Jenkins.
+// Each stage runs only if the repo contains that kind of project.
+pipeline {
+  agent any
+
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    disableConcurrentBuilds()
+  }
+
+  stages {
+    stage('Go') {
+      when { expression { fileExists('go.mod') } }
+      steps { sh 'go vet ./... && go test -race ./...' }
+    }
+
+    stage('Node') {
+      when { expression { fileExists('package.json') } }
+      steps { sh 'npm ci && npm test --if-present' }
+    }
+
+    stage('Python') {
+      when { expression { fileExists('requirements.txt') || fileExists('pyproject.toml') } }
+      steps {
+        sh '''
+          python3 -m venv .venv
+          for f in requirements.txt requirements-dev.txt; do [ -f "$f" ] && .venv/bin/pip install -r "$f"; done
+          .venv/bin/pip install pytest && .venv/bin/pytest -q
+        '''
+      }
+    }
+
+    stage('Docker build') {
+      when { expression { fileExists('Dockerfile') } }
+      steps { sh 'docker build -t [[.Name]]:${BUILD_NUMBER} .' }
+    }
+  }
+}

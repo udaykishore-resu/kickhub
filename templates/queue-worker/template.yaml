@@ -1,6 +1,6 @@
 id: queue-worker
 name: Queue consumer worker
-category: Data Processing
+category: Containers
 version: 1.0.0
 description: >-
   Go worker that consumes messages from a queue with a dead-letter queue for

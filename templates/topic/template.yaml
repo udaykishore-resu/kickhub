@@ -1,0 +1,29 @@
+id: topic
+name: Pub/sub topic
+category: Individual Resources
+version: 1.0.0
+description: >-
+  A fan-out topic that publishers write to and any number of subscribers read from.
+tags: [messaging, topic, sns, pubsub, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+targets:
+  aws:
+    summary: SNS topic encrypted with the AWS-managed key
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [SNS topic]
+    requires: [terraform, aws]
+  gcp:
+    summary: Pub/Sub topic with one-day message retention
+    layers: [_shared/infra-only, _shared/tf-gcp]
+    resources: [Pub/Sub topic]
+    requires: [terraform, gcloud]
+  local:
+    summary: Pub/Sub emulator with the topic pre-created
+    layers: [_shared/infra-only]
+    resources: [Pub/Sub emulator container]
+    requires: [docker]
+    notes: >-
+      Point any Pub/Sub client at the emulator with `PUBSUB_EMULATOR_HOST=localhost:8085` and project `local`.

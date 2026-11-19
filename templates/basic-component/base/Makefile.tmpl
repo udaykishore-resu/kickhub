@@ -1,0 +1,8 @@
+.PHONY: check
+
+# Runs whatever this repo contains. Extend it as the component grows.
+check:
+	@if [ -f go.mod ]; then go vet ./... && go test ./...; fi
+	@if [ -f package.json ]; then npm test; fi
+	@if [ -f requirements-dev.txt ]; then python3 -m pytest -q; fi
+	@echo "check passed"

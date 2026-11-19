@@ -1,0 +1,39 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/url"
+)
+
+// s3Notification is the S3 event format, which MinIO also emits.
+type s3Notification struct {
+	Records []struct {
+		S3 struct {
+			Bucket struct {
+				Name string `json:"name"`
+			} `json:"bucket"`
+			Object struct {
+				Key string `json:"key"`
+			} `json:"object"`
+		} `json:"s3"`
+	} `json:"Records"`
+}
+
+// ProcessS3JSON handles a raw S3-format notification body.
+func ProcessS3JSON(ctx context.Context, body []byte) error {
+	var n s3Notification
+	if err := json.Unmarshal(body, &n); err != nil {
+		return err
+	}
+	var errs []error
+	for _, r := range n.Records {
+		key, err := url.QueryUnescape(r.S3.Object.Key) // keys arrive URL-encoded
+		if err != nil {
+			key = r.S3.Object.Key
+		}
+		errs = append(errs, Process(ctx, r.S3.Bucket.Name, key))
+	}
+	return errors.Join(errs...)
+}

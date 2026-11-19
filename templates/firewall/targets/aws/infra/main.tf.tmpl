@@ -1,0 +1,44 @@
+variable "vpc_id" {
+  description = "VPC the security group belongs to"
+  type        = string
+}
+
+variable "ingress_port" {
+  type    = number
+  default = 443
+}
+
+variable "ingress_cidrs" {
+  description = "Ranges allowed to connect. Keep this as narrow as you can."
+  type        = list(string)
+  default     = ["10.0.0.0/8"]
+}
+
+resource "aws_security_group" "this" {
+  name_prefix = "${var.name}-"
+  description = "${var.name}: inbound TCP ${var.ingress_port}"
+  vpc_id      = var.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ingress" {
+  for_each          = toset(var.ingress_cidrs)
+  security_group_id = aws_security_group.this.id
+  cidr_ipv4         = each.value
+  from_port         = var.ingress_port
+  to_port           = var.ingress_port
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "all" {
+  security_group_id = aws_security_group.this.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+
+output "security_group_id" {
+  value = aws_security_group.this.id
+}

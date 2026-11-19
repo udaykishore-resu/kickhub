@@ -1,0 +1,26 @@
+# [[.Name]]
+
+[[.P.summary]]
+
+## Getting started
+
+```sh
+make check
+```
+
+## Repository map
+
+| Path | What it is |
+|---|---|
+| `docs/adr/` | Architecture decision records: why things are the way they are |
+| `CONTRIBUTING.md` | How to propose a change |
+| `.github/workflows/ci.yml` | CI that detects Go, Node, Python and Docker and tests what it finds |
+| `.kickhub.yaml` | Records the template and parameters this repo was created from |
+
+## Adding to this repo later
+
+kickhub can add a component to this repository without overwriting anything:
+
+```sh
+kickhub new queue-worker -name [[.Name]] -target local -into .
+```

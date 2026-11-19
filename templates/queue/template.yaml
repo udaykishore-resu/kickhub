@@ -1,0 +1,29 @@
+id: queue
+name: Message queue with dead-letter queue
+category: Individual Resources
+version: 1.0.0
+description: >-
+  A durable work queue. Messages that keep failing move to a dead-letter queue instead of blocking the rest.
+tags: [messaging, queue, sqs, pubsub, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+targets:
+  aws:
+    summary: SQS queue with a dead-letter queue
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [SQS queue, SQS dead-letter queue]
+    requires: [terraform, aws]
+  gcp:
+    summary: Pub/Sub topic and pull subscription with a dead-letter topic
+    layers: [_shared/infra-only, _shared/tf-gcp]
+    resources: [Pub/Sub topic, Pub/Sub subscription, Dead-letter topic]
+    requires: [terraform, gcloud]
+  local:
+    summary: ElasticMQ (SQS-compatible) with the queue pre-created
+    layers: [_shared/infra-only]
+    resources: [ElasticMQ container]
+    requires: [docker]
+    notes: >-
+      Use any SQS SDK with endpoint `http://localhost:9324`, any credentials, and queue URL `http://localhost:9324/000000000000/[[.Name]]`. A web console runs on port 9325.

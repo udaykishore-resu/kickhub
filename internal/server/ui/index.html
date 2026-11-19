@@ -44,6 +44,7 @@
   <p>Pick a template and a target. Get a kickstart repo with code, infrastructure and a local run path.</p>
   <input id="q" type="search" placeholder="What do you want to build? e.g. &quot;queue worker&quot; or &quot;bucket&quot;" aria-label="Search templates">
   <div class="chips" id="targets" role="group" aria-label="Filter by target"></div>
+  <div class="chips" id="cats" role="group" aria-label="Filter by category"></div>
 </header>
 <main id="catalog"></main>
 
@@ -57,6 +58,8 @@
     <label for="f-name">Component name</label>
     <input id="f-name" required pattern="[a-z][a-z0-9\-]{1,38}[a-z0-9]" placeholder="orders-api">
     <div id="d-params"></div>
+    <label for="d-cli">Same thing from the terminal</label>
+    <pre id="d-cli" style="border:1px solid var(--line);border-radius:8px;white-space:pre-wrap"></pre>
     <div class="row">
       <button type="button" id="b-preview">Preview files</button>
       <button type="button" class="primary" id="b-create">Download repo (.zip)</button>
@@ -71,7 +74,8 @@
 <script>
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-let target = '', current = null, curTarget = '';
+let target = '', cat = '', current = null, curTarget = '';
+const label = n => n === 'any' ? 'ANY CLOUD' : n.toUpperCase();
 
 function chips(box, names, selected, onPick) {
   box.replaceChildren(...names.map(([value, label]) => {
@@ -89,17 +93,20 @@ async function load() {
   const list = await res.json();
   const groups = {};
   list.forEach(t => (groups[t.category] ||= []).push(t));
+  if (cat && !groups[cat]) cat = '';
+  chips($('cats'), [['', `All (${list.length})`], ...Object.entries(groups).map(([c, items]) => [c, `${c} (${items.length})`])], cat, v => { cat = v; load(); });
   const main = $('catalog');
   main.replaceChildren();
   if (!list.length) main.append(el('p', '', 'No templates match. Try a broader search.'));
-  for (const [cat, items] of Object.entries(groups)) {
-    main.append(el('h2', '', `${cat} (${items.length})`));
+  for (const [name, items] of Object.entries(groups)) {
+    if (cat && name !== cat) continue;
+    main.append(el('h2', '', `${name} (${items.length})`));
     const grid = el('div', 'grid');
     for (const t of items) {
       const card = el('div', 'card');
       card.append(el('h3', '', t.name), el('p', '', t.description));
       const tags = el('div', 'tags');
-      Object.keys(t.targets).sort().forEach(n => tags.append(el('span', 'tag t', n)));
+      Object.keys(t.targets).sort().forEach(n => tags.append(el('span', 'tag t', n === 'any' ? 'any cloud' : n)));
       (t.tags || []).slice(0, 4).forEach(n => tags.append(el('span', 'tag', n)));
       const b = el('button', 'primary', 'Choose');
       b.onclick = () => open(t);
@@ -117,14 +124,14 @@ function open(t) {
   $('d-err').textContent = '';
   $('d-files').hidden = true;
   $('d-req').replaceChildren();
-  pickTarget(t.targets[target] ? target : (t.targets.local ? 'local' : Object.keys(t.targets)[0]));
+  pickTarget(t.targets[target] ? target : (t.targets.local ? 'local' : Object.keys(t.targets).sort()[0]));
   $('dlg').showModal();
 }
 
 function pickTarget(name) {
   curTarget = name;
   const t = current, tg = t.targets[name];
-  chips($('d-targets'), Object.keys(t.targets).sort().map(n => [n, n.toUpperCase()]), name, pickTarget);
+  chips($('d-targets'), Object.keys(t.targets).sort().map(n => [n, label(n)]), name, pickTarget);
   $('d-res').replaceChildren(el('li', '', tg.summary), ...tg.resources.map(r => el('li', '', r)));
   const box = $('d-params');
   box.replaceChildren();
@@ -135,9 +142,17 @@ function pickTarget(name) {
     const inp = el('input');
     inp.id = 'p-' + p.name; inp.dataset.param = p.name; inp.required = !!p.required;
     inp.placeholder = (p.default || '').replace('[[.Name]]', '<name>');
+    inp.oninput = cli;
     box.append(lab, inp);
   }
   $('d-files').hidden = true;
+  cli();
+}
+
+function cli() {
+  const req = JSON.parse(body());
+  const sets = Object.entries(req.params).map(([k, v]) => ` -set ${k}='${v}'`).join('');
+  $('d-cli').textContent = `kickhub new ${req.template} -name ${req.name || '<name>'} -target ${req.target}${sets}`;
 }
 
 function body() {
@@ -180,6 +195,7 @@ $('b-create').onclick = async () => {
 };
 
 $('b-close').onclick = () => $('dlg').close();
+$('f-name').oninput = cli;
 let timer;
 $('q').oninput = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
 load();

@@ -1,0 +1,46 @@
+.PHONY: tidy test vet run[[ if eq .Target "local" ]] up down smoke[[ else ]] infra-init infra-plan infra-apply[[ end ]][[ if eq .Target "aws" ]] package[[ end ]]
+
+go.sum: go.mod
+	go mod tidy
+
+tidy:
+	go mod tidy
+
+test: go.sum
+	go test ./...
+
+vet: go.sum
+	go vet ./...
+
+run: go.sum
+	go run ./cmd/server
+[[ if eq .Target "local" ]]
+up: go.sum
+	docker compose up --build -d
+
+down:
+	docker compose down
+
+smoke:
+	curl -fsS localhost:8080/hello/world
+[[ else ]]
+infra-init:
+	terraform -chdir=infra init
+[[ if eq .Target "aws" ]]
+package: go.sum
+	mkdir -p build
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -trimpath -o build/bootstrap ./cmd/lambda
+	cd build && zip -q -j function.zip bootstrap
+
+infra-plan: infra-init package
+	terraform -chdir=infra plan
+
+infra-apply: infra-init package
+	terraform -chdir=infra apply
+[[ else ]]
+infra-plan: infra-init go.sum
+	terraform -chdir=infra plan
+
+infra-apply: infra-init go.sum
+	terraform -chdir=infra apply
+[[ end ]][[ end ]]

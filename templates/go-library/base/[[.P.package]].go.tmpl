@@ -1,0 +1,38 @@
+// Package [[.P.package]] retries an operation with exponential backoff.
+//
+// It is the example API this library ships with: small, dependency-free and
+// fully tested. Replace it with your own.
+package [[.P.package]]
+
+import (
+	"context"
+	"errors"
+	"time"
+)
+
+// ErrPermanent wraps an error that must not be retried.
+var ErrPermanent = errors.New("permanent error")
+
+// Do calls fn until it succeeds, returns an error wrapping ErrPermanent,
+// the context ends, or attempts are exhausted. The wait doubles after each
+// failure, starting at base.
+func Do(ctx context.Context, attempts int, base time.Duration, fn func(context.Context) error) error {
+	if attempts < 1 {
+		return errors.New("attempts must be at least 1")
+	}
+	var err error
+	for i := 0; i < attempts; i++ {
+		if err = fn(ctx); err == nil || errors.Is(err, ErrPermanent) {
+			return err
+		}
+		if i == attempts-1 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(ctx.Err(), err)
+		case <-time.After(base << i):
+		}
+	}
+	return err
+}

@@ -1,0 +1,33 @@
+id: postgres-db
+name: PostgreSQL database
+category: Databases
+version: 1.0.0
+description: >-
+  A managed PostgreSQL database with encryption, backups and deletion protection on by default.
+tags: [database, postgres, aurora, cloudsql, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+targets:
+  aws:
+    summary: Aurora Serverless v2 PostgreSQL with a Secrets Manager password
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [Aurora cluster, Aurora writer instance, DB subnet group, Security group]
+    requires: [terraform, aws]
+    notes: >-
+      Copy `infra/terraform.tfvars.example` to `infra/terraform.tfvars` and set your VPC and subnet ids first. The master password is generated and kept in Secrets Manager; read its ARN from the `master_user_secret_arn` output.
+  gcp:
+    summary: Cloud SQL for PostgreSQL with point-in-time recovery
+    layers: [_shared/infra-only, _shared/tf-gcp]
+    resources: [Cloud SQL instance, Database, Database user]
+    requires: [terraform, gcloud]
+    notes: >-
+      Connect through the Cloud SQL Auth Proxy using the `connection_name` output. Read the generated password with `terraform -chdir=infra output -raw app_password`.
+  local:
+    summary: PostgreSQL 16 container with a persistent volume
+    layers: [_shared/infra-only]
+    resources: [PostgreSQL container]
+    requires: [docker]
+    notes: >-
+      Connection string: `postgres://app:localsecret@localhost:5432/[[snake .Name]]?sslmode=disable`.

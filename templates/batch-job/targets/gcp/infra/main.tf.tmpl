@@ -1,0 +1,58 @@
+variable "image_uri" {
+  description = "Full Artifact Registry image URI. Leave empty on the first apply, push the image, then apply again."
+  type        = string
+  default     = ""
+}
+
+variable "timeout" {
+  description = "Longest a single run may take"
+  type        = string
+  default     = "3600s"
+}
+
+resource "google_project_service" "apis" {
+  for_each           = toset(["run.googleapis.com", "artifactregistry.googleapis.com"])
+  service            = each.key
+  disable_on_destroy = false
+}
+
+resource "google_artifact_registry_repository" "app" {
+  repository_id = var.name
+  location      = var.region
+  format        = "DOCKER"
+  depends_on    = [google_project_service.apis]
+}
+
+# The identity your job code runs as. Grant only what the job needs.
+resource "google_service_account" "job" {
+  account_id   = var.name
+  display_name = "${var.name} job"
+}
+
+resource "google_cloud_run_v2_job" "job" {
+  count    = var.image_uri == "" ? 0 : 1
+  name     = var.name
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.job.email
+      max_retries     = 1
+      timeout         = var.timeout
+
+      containers {
+        image = var.image_uri
+      }
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+output "image_repository" {
+  value = "${var.region}-docker.pkg.dev/${var.project}/${google_artifact_registry_repository.app.repository_id}/${var.name}"
+}
+
+output "job_service_account" {
+  value = google_service_account.job.email
+}

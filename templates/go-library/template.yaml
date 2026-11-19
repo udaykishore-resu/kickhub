@@ -1,0 +1,21 @@
+id: go-library
+name: Go library package
+category: Other
+version: 1.0.0
+description: >-
+  A shared Go library ready to publish: package with documented API, tests,
+  a runnable example for pkg.go.dev, CI and a tag-driven release workflow.
+tags: [go, library, package, pkg-go-dev, release]
+parameters:
+  - name: go_module
+    description: Go module path, which is also the import path
+    default: "github.com/acme/[[.Name]]"
+  - name: package
+    description: Go package name
+    default: "[[snake .Name]]"
+targets:
+  any:
+    summary: Publishable Go module with tests, example and release workflow
+    layers: [_shared/go]
+    resources: [Go package, CI workflow, Release workflow]
+    requires: [go]

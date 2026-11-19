@@ -1,0 +1,64 @@
+variable "engine_version" {
+  type    = string
+  default = "OpenSearch_2.17"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t3.small.search"
+}
+
+variable "volume_size_gb" {
+  type    = number
+  default = 10
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_opensearch_domain" "this" {
+  domain_name    = var.name
+  engine_version = var.engine_version
+
+  cluster_config {
+    instance_type  = var.instance_type
+    instance_count = 1
+  }
+
+  ebs_options {
+    ebs_enabled = true
+    volume_type = "gp3"
+    volume_size = var.volume_size_gb
+  }
+
+  encrypt_at_rest {
+    enabled = true
+  }
+
+  node_to_node_encryption {
+    enabled = true
+  }
+
+  domain_endpoint_options {
+    enforce_https       = true
+    tls_security_policy = "Policy-Min-TLS-1-2-2019-07"
+  }
+
+  # Only signed requests from principals in this account are accepted.
+  access_policies = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "es:ESHttp*"
+      Resource  = "arn:aws:es:${var.region}:${data.aws_caller_identity.current.account_id}:domain/${var.name}/*"
+    }]
+  })
+}
+
+output "endpoint" {
+  value = "https://${aws_opensearch_domain.this.endpoint}"
+}
+
+output "dashboards_url" {
+  value = "https://${aws_opensearch_domain.this.endpoint}/_dashboards"
+}

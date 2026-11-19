@@ -1,0 +1,28 @@
+// Package function is the Cloud Functions entry point. Cloud Functions
+// builds the package at the module root and calls the registered "Entry".
+package function
+
+import (
+	"context"
+
+	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
+	"github.com/cloudevents/sdk-go/v2/event"
+
+	"[[.P.go_module]]/internal/handler"
+)
+
+func init() {
+	functions.CloudEvent("Entry", entry)
+}
+
+// entry receives the Cloud Storage "object finalized" event.
+func entry(ctx context.Context, e event.Event) error {
+	var obj struct {
+		Bucket string `json:"bucket"`
+		Name   string `json:"name"`
+	}
+	if err := e.DataAs(&obj); err != nil {
+		return err
+	}
+	return handler.Process(ctx, obj.Bucket, obj.Name) // a returned error triggers a retry
+}

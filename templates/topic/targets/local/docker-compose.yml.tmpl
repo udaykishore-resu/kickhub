@@ -1,0 +1,17 @@
+# Local Pub/Sub emulator with the topic "[[.Name]]" created in project "local".
+services:
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: ["gcloud", "beta", "emulators", "pubsub", "start", "--host-port=0.0.0.0:8085", "--project=local"]
+    ports:
+      - "8085:8085"
+
+  init:
+    image: curlimages/curl:latest
+    depends_on:
+      - pubsub
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        until curl -s -o /dev/null http://pubsub:8085; do sleep 1; done;
+        curl -s -X PUT http://pubsub:8085/v1/projects/local/topics/[[.Name]]

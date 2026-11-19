@@ -1,0 +1,14 @@
+# CI for [[.Name]]
+
+Added by kickhub from `[[.Template]]` v[[.Version]].
+
+| File | Purpose |
+|---|---|
+| `.github/workflows/ci.yml` | Runs on every push to `main` and every pull request |
+| `Jenkinsfile` | The same checks for Jenkins; delete it if you only use GitHub Actions |
+| `.github/dependabot.yml` | Weekly updates for the actions the workflow uses |
+| `.github/pull_request_template.md` | Prompts for what, why and how it was tested |
+
+The pipeline detects what the repo contains and runs only the matching steps: Go (`go.mod`), Node (`package.json`), Python (`requirements*.txt` or `pyproject.toml`), Terraform formatting (`*.tf`) and a Docker build (`Dockerfile`).
+
+To make CI required, protect `main` in the repository settings and require the `test` check.

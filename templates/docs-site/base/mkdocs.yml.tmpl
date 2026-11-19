@@ -1,0 +1,23 @@
+site_name: "[[.P.site_title]]"
+strict: true # a broken link fails the build instead of shipping
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Runbooks:
+      - Runbook template: runbooks/template.md
+  - Decisions:
+      - 1. Docs as code: adr/0001-docs-as-code.md

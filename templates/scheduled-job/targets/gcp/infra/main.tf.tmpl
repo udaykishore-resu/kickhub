@@ -1,0 +1,85 @@
+variable "schedule" {
+  type    = string
+  default = "[[.P.gcp_schedule]]"
+}
+
+variable "image_uri" {
+  description = "Full Artifact Registry image URI. Leave empty on the first apply, push the image, then apply again."
+  type        = string
+  default     = ""
+}
+
+resource "google_project_service" "apis" {
+  for_each           = toset(["run.googleapis.com", "cloudscheduler.googleapis.com", "artifactregistry.googleapis.com"])
+  service            = each.key
+  disable_on_destroy = false
+}
+
+resource "google_artifact_registry_repository" "app" {
+  repository_id = var.name
+  location      = var.region
+  format        = "DOCKER"
+  depends_on    = [google_project_service.apis]
+}
+
+# The identity the job runs as. Grant it only what the job needs.
+resource "google_service_account" "job" {
+  account_id   = var.name
+  display_name = "${var.name} job"
+}
+
+resource "google_cloud_run_v2_job" "job" {
+  count    = var.image_uri == "" ? 0 : 1
+  name     = var.name
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.job.email
+      max_retries     = 2
+      timeout         = "900s"
+
+      containers {
+        image = var.image_uri
+      }
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+# The scheduler's own identity: allowed to start this job and nothing else.
+resource "google_service_account" "scheduler" {
+  account_id   = "${var.name}-sched"
+  display_name = "${var.name} scheduler"
+}
+
+resource "google_cloud_run_v2_job_iam_member" "scheduler" {
+  count    = var.image_uri == "" ? 0 : 1
+  name     = google_cloud_run_v2_job.job[0].name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler.email}"
+}
+
+resource "google_cloud_scheduler_job" "trigger" {
+  count    = var.image_uri == "" ? 0 : 1
+  name     = var.name
+  region   = var.region
+  schedule = var.schedule
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project}/locations/${var.region}/jobs/${var.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.scheduler.email
+    }
+  }
+
+  depends_on = [google_cloud_run_v2_job_iam_member.scheduler]
+}
+
+output "image_repository" {
+  value = "${var.region}-docker.pkg.dev/${var.project}/${google_artifact_registry_repository.app.repository_id}/${var.name}"
+}

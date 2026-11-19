@@ -10,6 +10,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AnyTarget marks a template whose output does not depend on a cloud
+// (a library, a docs site, CI files). It matches every target filter.
+const AnyTarget = "any"
+
 // Param is one user-supplied input of a template.
 type Param struct {
 	Name        string   `yaml:"name" json:"name"`
@@ -35,9 +39,10 @@ func (p Param) AppliesTo(target string) bool {
 // Target describes what a template produces for one deployment target.
 type Target struct {
 	Summary   string   `yaml:"summary" json:"summary"`
-	Layers    []string `yaml:"layers" json:"layers,omitempty"` // shared directories applied before the target's own
+	Layers    []string `yaml:"layers" json:"layers,omitempty"` // directories applied before the target's own
 	Resources []string `yaml:"resources" json:"resources"`
-	Requires  []string `yaml:"requires" json:"requires"` // CLI tools needed on PATH
+	Requires  []string `yaml:"requires" json:"requires"`     // CLI tools needed on PATH
+	Notes     string   `yaml:"notes" json:"notes,omitempty"` // usage notes rendered into the generated README
 }
 
 // Template is one catalog entry.
@@ -50,25 +55,63 @@ type Template struct {
 	Tags        []string          `yaml:"tags" json:"tags"`
 	Parameters  []Param           `yaml:"parameters" json:"parameters"`
 	Targets     map[string]Target `yaml:"targets" json:"targets"`
+	Vars        map[string]string `yaml:"vars" json:"-"` // template-author constants, exposed as .V
 
-	FS fs.FS `yaml:"-" json:"-"` // root of this template's directory
+	FS   fs.FS `yaml:"-" json:"-"` // root of this template's directory
+	root fs.FS // catalog root, for _shared layers
 }
 
-// Layers returns the directories to overlay, in order, for a target:
-// base, then any shared layers the target lists, then targets/<target>.
-func (t *Template) Layers(target string) ([]string, error) {
+// Layer is one directory to overlay into the output.
+type Layer struct {
+	FS  fs.FS
+	Dir string
+}
+
+// ResolveTarget maps a requested target to one the template declares.
+// A target-agnostic template answers every request with AnyTarget.
+func (t *Template) ResolveTarget(target string) (string, bool) {
+	if _, ok := t.Targets[target]; ok {
+		return target, true
+	}
+	if _, ok := t.Targets[AnyTarget]; ok {
+		return AnyTarget, true
+	}
+	return "", false
+}
+
+// Layers returns the directories to overlay, in order: base, the layers the
+// target lists, then targets/<target>. A layer starting with "_shared/" is
+// read from the catalog root so several templates can reuse it.
+func (t *Template) Layers(target string) ([]Layer, error) {
 	tg, ok := t.Targets[target]
 	if !ok {
 		return nil, fmt.Errorf("template %q has no target %q", t.ID, target)
 	}
-	out := []string{"base"}
+	var out []Layer
+	add := func(fsys fs.FS, dir string) bool {
+		if _, err := fs.Stat(fsys, dir); err != nil {
+			return false
+		}
+		out = append(out, Layer{fsys, dir})
+		return true
+	}
+	// Shared layers go first so a template's own files always win.
 	for _, l := range tg.Layers {
-		if _, err := fs.Stat(t.FS, l); err != nil {
+		if strings.HasPrefix(l, "_shared/") && !add(t.root, l) {
 			return nil, fmt.Errorf("template %q target %q: layer %q not found", t.ID, target, l)
 		}
-		out = append(out, l)
 	}
-	return append(out, "targets/"+target), nil
+	add(t.FS, "base")
+	for _, l := range tg.Layers {
+		if !strings.HasPrefix(l, "_shared/") && !add(t.FS, l) {
+			return nil, fmt.Errorf("template %q target %q: layer %q not found", t.ID, target, l)
+		}
+	}
+	add(t.FS, "targets/"+target)
+	if len(out) == 0 {
+		return nil, fmt.Errorf("template %q target %q produces no files", t.ID, target)
+	}
+	return out, nil
 }
 
 // Catalog is the set of loaded templates.
@@ -77,6 +120,7 @@ type Catalog struct {
 }
 
 // Load reads every top-level directory of fsys that contains a template.yaml.
+// Directories starting with "_" hold shared layers, not templates.
 func Load(fsys fs.FS) (*Catalog, error) {
 	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
@@ -84,7 +128,7 @@ func Load(fsys fs.FS) (*Catalog, error) {
 	}
 	c := &Catalog{byID: map[string]*Template{}}
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), "_") {
 			continue
 		}
 		raw, err := fs.ReadFile(fsys, e.Name()+"/template.yaml")
@@ -101,6 +145,7 @@ func Load(fsys fs.FS) (*Catalog, error) {
 		if len(t.Targets) == 0 {
 			return nil, fmt.Errorf("template %q declares no targets", t.ID)
 		}
+		t.root = fsys
 		if t.FS, err = fs.Sub(fsys, e.Name()); err != nil {
 			return nil, err
 		}
@@ -134,7 +179,7 @@ func (c *Catalog) Search(query, target string) []*Template {
 	var hits []hit
 	for _, t := range c.byID {
 		if target != "" {
-			if _, ok := t.Targets[target]; !ok {
+			if _, ok := t.ResolveTarget(target); !ok {
 				continue
 			}
 		}

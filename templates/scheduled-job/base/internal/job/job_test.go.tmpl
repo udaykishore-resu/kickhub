@@ -1,0 +1,20 @@
+package job
+
+import (
+	"context"
+	"testing"
+)
+
+func TestRun(t *testing.T) {
+	if err := Run(context.Background()); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+}
+
+func TestRunStopsWhenCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := Run(ctx); err == nil {
+		t.Fatal("a cancelled context must stop the job")
+	}
+}

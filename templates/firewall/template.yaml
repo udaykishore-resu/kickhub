@@ -1,0 +1,26 @@
+id: firewall
+name: Network firewall rule
+category: Individual Resources
+version: 1.0.0
+description: >-
+  An inbound allow rule for one TCP port from a list of CIDR ranges, with nothing else opened.
+tags: [network, security-group, firewall, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+targets:
+  aws:
+    summary: Security group allowing one inbound TCP port
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [Security group, Ingress rules, Egress rule]
+    requires: [terraform, aws]
+    notes: >-
+      Copy `infra/terraform.tfvars.example` to `infra/terraform.tfvars` and set `vpc_id` first. Attach the `security_group_id` output to the resource that should receive traffic.
+  gcp:
+    summary: VPC firewall rule allowing one inbound TCP port
+    layers: [_shared/infra-only, _shared/tf-gcp]
+    resources: [VPC firewall rule]
+    requires: [terraform, gcloud]
+    notes: >-
+      The rule applies to instances carrying the network tag `[[.Name]]`.

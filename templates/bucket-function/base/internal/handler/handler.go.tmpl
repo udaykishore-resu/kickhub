@@ -1,0 +1,23 @@
+// Package handler holds the business logic. It knows nothing about which
+// cloud delivered the event.
+package handler
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+)
+
+// Process handles one uploaded object. It must be idempotent: every
+// supported platform can deliver the same event more than once.
+func Process(_ context.Context, bucket, key string) error {
+	if bucket == "" || key == "" {
+		return errors.New("event has no bucket or key")
+	}
+	if strings.HasSuffix(key, "/") {
+		return nil // folder marker, nothing to do
+	}
+	slog.Info("object uploaded", "bucket", bucket, "key", key)
+	return nil
+}

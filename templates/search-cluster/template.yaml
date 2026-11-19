@@ -1,0 +1,24 @@
+id: search-cluster
+name: Search cluster
+category: Databases
+version: 1.0.0
+description: >-
+  An OpenSearch cluster for full-text search, log analytics and dashboards.
+tags: [database, search, opensearch, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+targets:
+  aws:
+    summary: Amazon OpenSearch Service domain, HTTPS only, IAM-authenticated
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [OpenSearch domain]
+    requires: [terraform, aws]
+    notes: >-
+      Requests must be SigV4-signed by a principal in this account. The domain name is the component name, which OpenSearch limits to 28 characters.
+  local:
+    summary: Single-node OpenSearch with OpenSearch Dashboards
+    layers: [_shared/infra-only]
+    resources: [OpenSearch container, Dashboards container]
+    requires: [docker]
+    notes: >-
+      API on `http://localhost:9200`, Dashboards on `http://localhost:5601`. Security is disabled locally.

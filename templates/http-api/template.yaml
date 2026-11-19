@@ -1,6 +1,6 @@
 id: http-api
 name: HTTP API + key-value store
-category: Application Integration
+category: Containers
 version: 1.0.0
 description: >-
   Go HTTP service with health check and a small items API behind a storage

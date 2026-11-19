@@ -1,0 +1,15 @@
+id: ci-onboarding
+name: CI onboarding for an existing repo
+category: Basic
+version: 1.0.0
+description: >-
+  Adds continuous integration to a repository that already exists: a GitHub
+  Actions workflow and an equivalent Jenkinsfile that detect Go, Node,
+  Python and Docker, plus dependency updates and a pull request template.
+  Use it with -into so nothing already in the repo is overwritten.
+tags: [ci, github-actions, jenkins, onboarding, dependabot]
+targets:
+  any:
+    summary: CI pipeline files for an existing repository
+    resources: [GitHub Actions workflow, Jenkinsfile, Dependabot config, Pull request template]
+    requires: [git]

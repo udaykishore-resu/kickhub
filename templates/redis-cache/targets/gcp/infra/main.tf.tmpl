@@ -1,0 +1,44 @@
+variable "network" {
+  description = "VPC network that may reach the cache"
+  type        = string
+  default     = "default"
+}
+
+variable "memory_size_gb" {
+  type    = number
+  default = 1
+}
+
+data "google_compute_network" "this" {
+  name = var.network
+}
+
+resource "google_project_service" "redis" {
+  service            = "redis.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_redis_instance" "this" {
+  name                    = var.name
+  tier                    = "BASIC"
+  memory_size_gb          = var.memory_size_gb
+  region                  = var.region
+  redis_version           = "REDIS_7_2"
+  authorized_network      = data.google_compute_network.this.id
+  auth_enabled            = true
+  transit_encryption_mode = "SERVER_AUTHENTICATION"
+  depends_on              = [google_project_service.redis]
+}
+
+output "host" {
+  value = google_redis_instance.this.host
+}
+
+output "port" {
+  value = google_redis_instance.this.port
+}
+
+output "auth_string" {
+  value     = google_redis_instance.this.auth_string
+  sensitive = true
+}

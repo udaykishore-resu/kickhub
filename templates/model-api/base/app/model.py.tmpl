@@ -1,0 +1,31 @@
+"""Model loading and inference.
+
+This is the only file you change to serve your own model: load your artifact
+in `Model.load` and compute in `Model.predict`. The example is a linear model
+stored as JSON so the service has no heavyweight dependency.
+"""
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Model:
+    version: str
+    weights: list[float]
+    bias: float
+
+    @classmethod
+    def load(cls, path: Path) -> "Model":
+        data = json.loads(path.read_text())
+        return cls(version=data["version"], weights=data["weights"], bias=data["bias"])
+
+    @property
+    def n_features(self) -> int:
+        return len(self.weights)
+
+    def predict(self, features: list[float]) -> float:
+        if len(features) != self.n_features:
+            raise ValueError(f"expected {self.n_features} features, got {len(features)}")
+        return sum(w * x for w, x in zip(self.weights, features)) + self.bias

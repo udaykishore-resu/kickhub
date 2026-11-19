@@ -1,0 +1,13 @@
+// Package function is the Cloud Functions entry point. Cloud Functions
+// builds the package at the module root and calls the registered "Entry".
+package function
+
+import (
+	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
+
+	"[[.P.go_module]]/internal/api"
+)
+
+func init() {
+	functions.HTTP("Entry", api.Handler().ServeHTTP)
+}

@@ -1,0 +1,24 @@
+// Command job runs the job once and exits non-zero on failure, which is
+// what container schedulers use to decide whether to retry.
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"[[.P.go_module]]/internal/job"
+)
+
+func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := job.Run(ctx); err != nil {
+		slog.Error("job failed", "err", err)
+		os.Exit(1)
+	}
+}

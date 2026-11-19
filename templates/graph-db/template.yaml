@@ -1,0 +1,24 @@
+id: graph-db
+name: Graph database
+category: Databases
+version: 1.0.0
+description: >-
+  A property-graph database queried with Gremlin.
+tags: [database, graph, neptune, gremlin, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+targets:
+  aws:
+    summary: Neptune Serverless cluster with IAM authentication
+    layers: [_shared/infra-only, _shared/tf-aws]
+    resources: [Neptune cluster, Neptune writer instance, Subnet group, Security group]
+    requires: [terraform, aws]
+    notes: >-
+      Copy `infra/terraform.tfvars.example` to `infra/terraform.tfvars` and set your VPC and subnet ids first. Neptune has no public endpoint: connect from inside the VPC on port 8182.
+  local:
+    summary: Apache TinkerPop Gremlin Server
+    layers: [_shared/infra-only]
+    resources: [Gremlin Server container]
+    requires: [docker]
+    notes: >-
+      Gremlin endpoint: `ws://localhost:8182/gremlin`. Data is in memory and lost on `make down`.

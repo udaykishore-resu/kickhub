@@ -1,0 +1,19 @@
+package handler
+
+import (
+	"context"
+	"testing"
+)
+
+func TestProcess(t *testing.T) {
+	ctx := context.Background()
+	if err := Process(ctx, "uploads", "reports/2026.csv"); err != nil {
+		t.Fatalf("valid object: %v", err)
+	}
+	if err := Process(ctx, "uploads", "reports/"); err != nil {
+		t.Fatalf("folder marker should be ignored: %v", err)
+	}
+	if err := Process(ctx, "", ""); err == nil {
+		t.Fatal("empty event must be rejected")
+	}
+}

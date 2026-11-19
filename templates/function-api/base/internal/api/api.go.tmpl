@@ -1,0 +1,24 @@
+// Package api holds the routes. It knows nothing about Lambda, Cloud
+// Functions or containers; the entry points adapt it to each runtime.
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+// Handler returns the API's routes.
+func Handler() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("ok"))
+	})
+
+	mux.HandleFunc("GET /hello/{name}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "hello " + r.PathValue("name")})
+	})
+
+	return mux
+}

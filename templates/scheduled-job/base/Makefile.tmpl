@@ -1,0 +1,56 @@
+.PHONY: tidy test vet run[[ if ne .Target "local" ]] infra-init infra-plan infra-apply[[ end ]][[ if eq .Target "aws" ]] package invoke[[ end ]][[ if eq .Target "gcp" ]] image execute[[ end ]]
+
+go.sum: go.mod
+	go mod tidy
+
+tidy:
+	go mod tidy
+
+test: go.sum
+	go test ./...
+
+vet: go.sum
+	go vet ./...
+[[ if eq .Target "local" ]]
+run: go.sum
+	docker compose run --rm --build job
+[[ else ]]
+run: go.sum
+	go run ./cmd/job
+
+infra-init:
+	terraform -chdir=infra init
+[[ end ]][[ if eq .Target "aws" ]]
+package: go.sum
+	mkdir -p build
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -trimpath -o build/bootstrap ./cmd/lambda
+	cd build && zip -q -j function.zip bootstrap
+
+infra-plan: infra-init package
+	terraform -chdir=infra plan
+
+infra-apply: infra-init package
+	terraform -chdir=infra apply
+
+# Run the job now instead of waiting for the schedule.
+invoke:
+	aws lambda invoke --function-name [[.Name]] --region [[.P.aws_region]] /dev/stdout
+[[ end ]][[ if eq .Target "gcp" ]]
+TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+
+infra-plan: infra-init
+	terraform -chdir=infra plan -var image_uri=$(IMAGE_URI)
+
+infra-apply: infra-init
+	terraform -chdir=infra apply -var image_uri=$(IMAGE_URI)
+
+# Usage: make image REPO=<image_repository from terraform output>
+image: go.sum
+	docker build --platform linux/amd64 -t $(REPO):$(TAG) .
+	docker push $(REPO):$(TAG)
+	@echo "Now run: make infra-apply IMAGE_URI=$(REPO):$(TAG)"
+
+# Run the job now instead of waiting for the schedule.
+execute:
+	gcloud run jobs execute [[.Name]] --region [[.P.gcp_region]] --project [[.P.gcp_project]] --wait
+[[ end ]]

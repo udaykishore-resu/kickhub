@@ -1,0 +1,41 @@
+# Local stack: MinIO posts an S3-format event to the handler on every upload.
+services:
+  handler:
+    build: .
+    ports:
+      - "8080:8080"
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    depends_on:
+      - handler
+    environment:
+      MINIO_ROOT_USER: local
+      MINIO_ROOT_PASSWORD: localsecret
+      MINIO_NOTIFY_WEBHOOK_ENABLE_HANDLER: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_HANDLER: http://handler:8080/events
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # web console
+
+  init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        until mc alias set local http://minio:9000 local localsecret >/dev/null 2>&1; do sleep 1; done;
+        mc mb --ignore-existing local/[[.Name]];
+        mc event add local/[[.Name]] arn:minio:sqs::HANDLER:webhook --event put --ignore-existing
+
+  # One-off helper: `make upload` copies the README into the bucket.
+  upload:
+    image: minio/mc:latest
+    profiles: ["tools"]
+    volumes:
+      - ./README.md:/README.md:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - mc alias set local http://minio:9000 local localsecret >/dev/null && mc cp /README.md local/[[.Name]]/README.md

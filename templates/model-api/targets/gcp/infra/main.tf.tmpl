@@ -1,0 +1,70 @@
+variable "image_uri" {
+  description = "Full Artifact Registry image URI. Leave empty on the first apply, push the image, then apply again."
+  type        = string
+  default     = ""
+}
+
+resource "google_project_service" "apis" {
+  for_each           = toset(["run.googleapis.com", "artifactregistry.googleapis.com"])
+  service            = each.key
+  disable_on_destroy = false
+}
+
+resource "google_artifact_registry_repository" "app" {
+  repository_id = var.name
+  location      = var.region
+  format        = "DOCKER"
+  depends_on    = [google_project_service.apis]
+}
+
+# The identity the running container uses. It has no roles until you grant
+# some, for example read access to a model bucket.
+resource "google_service_account" "app" {
+  account_id   = var.name
+  display_name = "${var.name} runtime"
+}
+
+resource "google_cloud_run_v2_service" "api" {
+  count    = var.image_uri == "" ? 0 : 1
+  name     = var.name
+  location = var.region
+
+  template {
+    service_account = google_service_account.app.email
+
+    scaling {
+      max_instance_count = 3
+    }
+
+    containers {
+      image = var.image_uri
+
+      ports {
+        container_port = 8080
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "2Gi"
+        }
+      }
+
+      startup_probe {
+        http_get {
+          path = "/healthz"
+        }
+      }
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+output "image_repository" {
+  value = "${var.region}-docker.pkg.dev/${var.project}/${google_artifact_registry_repository.app.repository_id}/${var.name}"
+}
+
+output "service_url" {
+  value = var.image_uri == "" ? "" : google_cloud_run_v2_service.api[0].uri
+}

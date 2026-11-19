@@ -1,0 +1,24 @@
+package api
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestHello(t *testing.T) {
+	rec := httptest.NewRecorder()
+	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/hello/world", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "hello world") {
+		t.Fatalf("got %d %q", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUnknownRouteIs404(t *testing.T) {
+	rec := httptest.NewRecorder()
+	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/nope", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got %d, want 404", rec.Code)
+	}
+}

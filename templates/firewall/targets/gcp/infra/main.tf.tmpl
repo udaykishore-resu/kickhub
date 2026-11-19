@@ -1,0 +1,33 @@
+variable "network" {
+  description = "VPC network name"
+  type        = string
+  default     = "default"
+}
+
+variable "ingress_port" {
+  type    = number
+  default = 443
+}
+
+variable "ingress_cidrs" {
+  description = "Ranges allowed to connect. Keep this as narrow as you can."
+  type        = list(string)
+  default     = ["10.0.0.0/8"]
+}
+
+resource "google_compute_firewall" "this" {
+  name          = var.name
+  network       = var.network
+  direction     = "INGRESS"
+  source_ranges = var.ingress_cidrs
+  target_tags   = [var.name]
+
+  allow {
+    protocol = "tcp"
+    ports    = [tostring(var.ingress_port)]
+  }
+}
+
+output "target_tag" {
+  value = var.name
+}

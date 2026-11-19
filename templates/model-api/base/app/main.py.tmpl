@@ -1,0 +1,46 @@
+"""HTTP layer: validation, routing and model lifecycle."""
+
+import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+from app.model import Model
+
+MODEL_PATH = Path(os.environ.get("MODEL_PATH", Path(__file__).parent.parent / "model.json"))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load once at startup, not per request.
+    app.state.model = Model.load(MODEL_PATH)
+    yield
+
+
+app = FastAPI(title="[[.Name]]", lifespan=lifespan)
+
+
+class PredictRequest(BaseModel):
+    features: list[float] = Field(min_length=1, max_length=1024)
+
+
+class PredictResponse(BaseModel):
+    prediction: float
+    model_version: str
+
+
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+    return {"status": "ok", "model_version": app.state.model.version}
+
+
+@app.post("/predict")
+def predict(req: PredictRequest) -> PredictResponse:
+    model: Model = app.state.model
+    try:
+        value = model.predict(req.features)
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=str(err)) from err
+    return PredictResponse(prediction=value, model_version=model.version)

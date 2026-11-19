@@ -1,0 +1,60 @@
+.PHONY: tidy test vet run[[ if ne .Target "local" ]] infra-init infra-plan infra-apply image execute[[ end ]]
+
+go.sum: go.mod
+	go mod tidy
+
+tidy:
+	go mod tidy
+
+test: go.sum
+	go test ./...
+
+vet: go.sum
+	go vet ./...
+[[ if eq .Target "local" ]]
+run: go.sum
+	docker compose run --rm --build job
+[[ else ]]
+run: go.sum
+	go run ./cmd/job
+
+infra-init:
+	terraform -chdir=infra init
+[[ end ]][[ if eq .Target "aws" ]]
+infra-plan: infra-init
+	terraform -chdir=infra plan
+
+infra-apply: infra-init
+	terraform -chdir=infra apply
+
+REPO = $(shell terraform -chdir=infra output -raw ecr_repository_url)
+
+image: go.sum
+	aws ecr get-login-password --region [[.P.aws_region]] | docker login --username AWS --password-stdin $(firstword $(subst /, ,$(REPO)))
+	docker build --platform linux/amd64 -t $(REPO):latest .
+	docker push $(REPO):latest
+
+# Usage: make execute SUBNETS=subnet-aaa,subnet-bbb
+# The subnets need a route to ECR: public subnets (as assumed here) or private ones with a NAT or VPC endpoints.
+execute:
+	aws ecs run-task --region [[.P.aws_region]] --cluster [[.Name]] --task-definition [[.Name]] --launch-type FARGATE \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],assignPublicIp=ENABLED}" \
+		--query "tasks[0].taskArn" --output text
+[[ end ]][[ if eq .Target "gcp" ]]
+TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+
+infra-plan: infra-init
+	terraform -chdir=infra plan -var image_uri=$(IMAGE_URI)
+
+infra-apply: infra-init
+	terraform -chdir=infra apply -var image_uri=$(IMAGE_URI)
+
+# Usage: make image REPO=<image_repository from terraform output>
+image: go.sum
+	docker build --platform linux/amd64 -t $(REPO):$(TAG) .
+	docker push $(REPO):$(TAG)
+	@echo "Now run: make infra-apply IMAGE_URI=$(REPO):$(TAG)"
+
+execute:
+	gcloud run jobs execute [[.Name]] --region [[.P.gcp_region]] --project [[.P.gcp_project]] --wait
+[[ end ]]

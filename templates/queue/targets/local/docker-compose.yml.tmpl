@@ -1,0 +1,22 @@
+# Local SQS-compatible broker with the queue "[[.Name]]" created.
+services:
+  elasticmq:
+    image: softwaremill/elasticmq-native:latest
+    ports:
+      - "9324:9324" # SQS API
+      - "9325:9325" # web console
+
+  init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - elasticmq
+    environment:
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_ENDPOINT_URL: http://elasticmq:9324
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        until aws sqs list-queues >/dev/null 2>&1; do sleep 1; done;
+        aws sqs create-queue --queue-name [[.Name]]

@@ -1,0 +1,31 @@
+# Local single-node OpenSearch with Dashboards. Security is off: development only.
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "5601:5601"
+
+volumes:
+  data:

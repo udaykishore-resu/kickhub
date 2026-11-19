@@ -1,0 +1,29 @@
+variable "location" {
+  type    = string
+  default = "US"
+}
+
+resource "google_storage_bucket" "state" {
+  name                        = "${var.name}-${var.project}"
+  location                    = var.location
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+output "backend_config" {
+  description = "Paste into the terraform {} block of each component, changing the prefix."
+  value       = <<-EOT
+    backend "gcs" {
+      bucket = "${google_storage_bucket.state.name}"
+      prefix = "COMPONENT_NAME"
+    }
+  EOT
+}

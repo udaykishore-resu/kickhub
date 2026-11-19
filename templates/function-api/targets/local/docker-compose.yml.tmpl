@@ -1,0 +1,6 @@
+# The same routes that run as a function in the cloud, served from a container.
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"

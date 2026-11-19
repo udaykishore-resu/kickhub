@@ -1,0 +1,77 @@
+package [[.P.package]]
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+)
+
+func TestDo(t *testing.T) {
+	boom := errors.New("boom")
+	tests := []struct {
+		name      string
+		failures  int   // calls that fail before one succeeds
+		failWith  error // error returned by failing calls
+		attempts  int
+		wantCalls int
+		wantErr   error
+	}{
+		{"succeeds first time", 0, boom, 3, 1, nil},
+		{"succeeds after retries", 2, boom, 3, 3, nil},
+		{"gives up when attempts run out", 5, boom, 3, 3, boom},
+		{"permanent error is not retried", 5, fmt.Errorf("bad input: %w", ErrPermanent), 3, 1, ErrPermanent},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			err := Do(context.Background(), tc.attempts, time.Microsecond, func(context.Context) error {
+				calls++
+				if calls <= tc.failures {
+					return tc.failWith
+				}
+				return nil
+			})
+			if calls != tc.wantCalls {
+				t.Errorf("calls = %d, want %d", calls, tc.wantCalls)
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("err = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestDoStopsWhenContextEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	err := Do(ctx, 5, time.Hour, func(context.Context) error {
+		calls++
+		cancel()
+		return errors.New("boom")
+	})
+	if calls != 1 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("calls = %d, err = %v", calls, err)
+	}
+}
+
+func TestDoRejectsZeroAttempts(t *testing.T) {
+	if err := Do(context.Background(), 0, time.Millisecond, func(context.Context) error { return nil }); err == nil {
+		t.Fatal("expected an error")
+	}
+}
+
+// Example functions appear as runnable documentation on pkg.go.dev.
+func ExampleDo() {
+	calls := 0
+	err := Do(context.Background(), 3, time.Millisecond, func(context.Context) error {
+		calls++
+		if calls < 3 {
+			return errors.New("not yet")
+		}
+		return nil
+	})
+	fmt.Println(calls, err)
+	// Output: 3 <nil>
+}

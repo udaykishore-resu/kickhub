@@ -1,0 +1,19 @@
+id: docs-site
+name: Documentation site
+category: Other
+version: 1.0.0
+description: >-
+  A Markdown-only documentation repository that builds into a searchable
+  site and publishes to GitHub Pages on every merge. Comes with a runbook
+  template and a decision log.
+tags: [docs, documentation, mkdocs, knowledge, runbook, github-pages]
+parameters:
+  - name: site_title
+    description: Title shown in the site header
+    default: "[[.Name]]"
+targets:
+  any:
+    layers: [_shared/gitignore]
+    summary: MkDocs Material site published to GitHub Pages
+    resources: [MkDocs site, GitHub Pages workflow, Runbook template, Decision log]
+    requires: [docker]

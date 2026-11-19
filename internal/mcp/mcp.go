@@ -37,7 +37,7 @@ var tools = []map[string]any{
 		"description": "Search the kickhub template catalog. Returns ids, targets, resources and parameters.",
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
 			"query":  map[string]any{"type": "string", "description": "Free text, e.g. 'queue worker'"},
-			"target": map[string]any{"type": "string", "enum": []string{"aws", "gcp", "local"}},
+			"target": map[string]any{"type": "string", "description": "aws, gcp or local"},
 		}},
 	},
 	{
@@ -45,7 +45,7 @@ var tools = []map[string]any{
 		"description": "Render a template into a new kickstart repository directory.",
 		"inputSchema": map[string]any{"type": "object", "required": []string{"template", "target", "name", "out_dir"}, "properties": map[string]any{
 			"template": map[string]any{"type": "string"},
-			"target":   map[string]any{"type": "string", "enum": []string{"aws", "gcp", "local"}},
+			"target":   map[string]any{"type": "string", "description": "aws, gcp or local"},
 			"name":     map[string]any{"type": "string", "description": "Component name, lowercase-with-dashes"},
 			"out_dir":  map[string]any{"type": "string", "description": "Directory to create; must be empty or missing"},
 			"params":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
@@ -132,7 +132,7 @@ func call(c *catalog.Catalog, raw json.RawMessage) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := res.WriteDir(a.OutDir); err != nil {
+		if _, err := res.WriteDir(a.OutDir, false); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("Created %s (%s, target %s) in %s:\n%s", a.Name, a.Template, a.Target, a.OutDir, strings.Join(res.Paths(), "\n")), nil

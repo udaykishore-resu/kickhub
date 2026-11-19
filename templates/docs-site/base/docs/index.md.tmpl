@@ -1,0 +1,16 @@
+# [[.P.site_title]]
+
+This site is built from Markdown in the `docs/` folder of the `[[.Name]]` repository. Every merge to `main` publishes it.
+
+## How to add a page
+
+1. Add a Markdown file under `docs/`.
+2. List it under `nav:` in `mkdocs.yml`.
+3. Run `make serve` and check it at <http://localhost:8000>.
+4. Open a pull request. The build fails on broken links, so a green check means the page is reachable.
+
+## What belongs here
+
+- **Runbooks**: what to do when something breaks. Start from the [runbook template](runbooks/template.md).
+- **Decisions**: why things are the way they are. See the [first record](adr/0001-docs-as-code.md).
+- **How-to guides**: one task per page, written for someone doing it for the first time.

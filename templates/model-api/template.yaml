@@ -1,0 +1,29 @@
+id: model-api
+name: ML model serving API
+category: ML Model
+version: 1.0.0
+description: >-
+  Python FastAPI service that loads a model artifact at startup and serves
+  real-time predictions with input validation. Ships with a tiny example
+  model so it runs end to end before you swap in your own.
+tags: [python, fastapi, ml, model-serving, inference, container, terraform]
+parameters:
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+targets:
+  aws:
+    summary: App Runner service running the model container
+    layers: [_shared/gitignore, _shared/tf-aws]
+    resources: [App Runner, ECR repository, IAM roles]
+    requires: [python3, docker, terraform, aws]
+  gcp:
+    summary: Cloud Run service running the model container
+    layers: [_shared/gitignore, _shared/tf-gcp]
+    resources: [Cloud Run, Artifact Registry, Service account]
+    requires: [python3, docker, terraform, gcloud]
+  local:
+    summary: The model container on port 8080
+    layers: [_shared/gitignore]
+    resources: [Model API container]
+    requires: [python3, docker]

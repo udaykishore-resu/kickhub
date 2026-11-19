@@ -1,0 +1,6 @@
+# Local Gremlin Server, wire-compatible with Neptune's Gremlin endpoint.
+services:
+  gremlin:
+    image: tinkerpop/gremlin-server:latest
+    ports:
+      - "8182:8182"

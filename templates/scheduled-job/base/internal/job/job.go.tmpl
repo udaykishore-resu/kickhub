@@ -1,0 +1,24 @@
+// Package job holds the work. It knows nothing about what scheduled it.
+package job
+
+import (
+	"context"
+	"log/slog"
+	"time"
+)
+
+// Run does one execution of the job. It must be safe to run twice: every
+// scheduler here retries on failure and can occasionally fire twice.
+func Run(ctx context.Context) error {
+	start := time.Now()
+	slog.Info("job started")
+
+	// Replace with real work. Check ctx so the job stops when it is cancelled
+	// or runs out of time.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	slog.Info("job finished", "took", time.Since(start).String())
+	return nil
+}

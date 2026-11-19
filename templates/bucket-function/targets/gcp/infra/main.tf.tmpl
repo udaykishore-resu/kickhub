@@ -1,0 +1,125 @@
+variable "runtime" {
+  description = "Cloud Functions Go runtime; must be at least the Go version in go.mod"
+  type        = string
+  default     = "go124"
+}
+
+resource "google_project_service" "apis" {
+  for_each = toset([
+    "cloudfunctions.googleapis.com", "run.googleapis.com", "cloudbuild.googleapis.com",
+    "artifactregistry.googleapis.com", "eventarc.googleapis.com", "pubsub.googleapis.com",
+  ])
+  service            = each.key
+  disable_on_destroy = false
+}
+
+# Must be in the same region as the trigger.
+resource "google_storage_bucket" "uploads" {
+  name                        = "${var.name}-${var.project}"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+}
+
+# The function is built from this repository's source.
+data "archive_file" "source" {
+  type        = "zip"
+  source_dir  = "${path.module}/.."
+  output_path = "${path.module}/.build/source.zip"
+  excludes    = ["infra/**", ".git/**", "build/**", "bin/**"]
+}
+
+resource "google_storage_bucket" "source" {
+  name                        = "${var.name}-src-${var.project}"
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
+
+resource "google_storage_bucket_object" "source" {
+  name   = "source-${data.archive_file.source.output_md5}.zip"
+  bucket = google_storage_bucket.source.name
+  source = data.archive_file.source.output_path
+}
+
+resource "google_service_account" "fn" {
+  account_id   = var.name
+  display_name = "${var.name} runtime"
+}
+
+# Cloud Storage publishes its events through Pub/Sub.
+data "google_storage_project_service_account" "gcs" {}
+
+resource "google_project_iam_member" "gcs_publisher" {
+  project = var.project
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
+}
+
+resource "google_project_iam_member" "event_receiver" {
+  project = var.project
+  role    = "roles/eventarc.eventReceiver"
+  member  = "serviceAccount:${google_service_account.fn.email}"
+}
+
+resource "google_project_iam_member" "invoker" {
+  project = var.project
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.fn.email}"
+}
+
+# Least privilege: read objects in this bucket only.
+resource "google_storage_bucket_iam_member" "reader" {
+  bucket = google_storage_bucket.uploads.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.fn.email}"
+}
+
+resource "google_cloudfunctions2_function" "fn" {
+  name     = var.name
+  location = var.region
+
+  build_config {
+    runtime     = var.runtime
+    entry_point = "Entry"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.source.name
+        object = google_storage_bucket_object.source.name
+      }
+    }
+  }
+
+  service_config {
+    available_memory      = "256M"
+    timeout_seconds       = 30
+    max_instance_count    = 3
+    service_account_email = google_service_account.fn.email
+  }
+
+  event_trigger {
+    trigger_region        = var.region
+    event_type            = "google.cloud.storage.object.v1.finalized"
+    retry_policy          = "RETRY_POLICY_RETRY"
+    service_account_email = google_service_account.fn.email
+
+    event_filters {
+      attribute = "bucket"
+      value     = google_storage_bucket.uploads.name
+    }
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    google_project_iam_member.gcs_publisher,
+    google_project_iam_member.event_receiver,
+    google_project_iam_member.invoker,
+  ]
+}
+
+output "bucket" {
+  value = google_storage_bucket.uploads.name
+}
+
+output "function_name" {
+  value = google_cloudfunctions2_function.fn.name
+}

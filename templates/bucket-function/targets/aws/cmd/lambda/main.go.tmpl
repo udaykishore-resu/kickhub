@@ -1,0 +1,29 @@
+// Command lambda adapts S3 event notifications to the handler.
+package main
+
+import (
+	"context"
+	"errors"
+	"net/url"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+
+	"[[.P.go_module]]/internal/handler"
+)
+
+func handle(ctx context.Context, e events.S3Event) error {
+	var errs []error
+	for _, r := range e.Records {
+		key, err := url.QueryUnescape(r.S3.Object.Key) // keys arrive URL-encoded
+		if err != nil {
+			key = r.S3.Object.Key
+		}
+		errs = append(errs, handler.Process(ctx, r.S3.Bucket.Name, key))
+	}
+	return errors.Join(errs...) // a returned error makes Lambda retry the event
+}
+
+func main() {
+	lambda.Start(handle)
+}

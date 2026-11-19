@@ -1,0 +1,35 @@
+id: scheduled-job
+name: Scheduled job
+category: Batch Processing
+version: 1.0.0
+description: >-
+  A Go job that runs on a schedule, with retries. The job logic is one
+  function; the schedule and the runtime come from the target.
+tags: [go, batch, cron, schedule, lambda, cloud-run, terraform]
+vars:
+  cmd: job
+parameters:
+  - name: go_module
+    description: Go module path for the new repo
+    default: "github.com/acme/[[.Name]]"
+  - {name: aws_region, description: AWS region, default: us-east-1, targets: [aws]}
+  - {name: aws_schedule, description: "EventBridge schedule, e.g. rate(1 hour) or cron(0 6 * * ? *)", default: rate(1 hour), targets: [aws]}
+  - {name: gcp_project, description: GCP project id, required: true, targets: [gcp]}
+  - {name: gcp_region, description: GCP region, default: us-central1, targets: [gcp]}
+  - {name: gcp_schedule, description: "Cron schedule, e.g. 0 * * * *", default: "0 * * * *", targets: [gcp]}
+targets:
+  aws:
+    summary: Lambda function invoked by an EventBridge Scheduler schedule
+    layers: [_shared/go, _shared/go-docker, _shared/tf-aws]
+    resources: [Lambda function, EventBridge schedule, IAM roles, Log group]
+    requires: [go, zip, terraform, aws]
+  gcp:
+    summary: Cloud Run job started by Cloud Scheduler
+    layers: [_shared/go, _shared/go-docker, _shared/tf-gcp]
+    resources: [Cloud Run job, Cloud Scheduler job, Artifact Registry, Service accounts]
+    requires: [go, docker, terraform, gcloud]
+  local:
+    summary: The job as a container you run on demand
+    layers: [_shared/go, _shared/go-docker]
+    resources: [Job container]
+    requires: [go, docker]

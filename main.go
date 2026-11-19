@@ -25,6 +25,8 @@ Usage:
   kickhub list   [-q "queue worker"] [-target aws|gcp|local]
   kickhub show   <template>
   kickhub new    <template> -name my-svc -target local [-out dir] [-set key=value ...]
+  kickhub new    <template> -name my-svc -into .   add to an existing repo, never overwriting
+  kickhub status [dir]                             what drifted from the template since generation
   kickhub doctor <template> -target aws
   kickhub serve  [-addr :8080]          web UI + JSON API
   kickhub mcp                           MCP server on stdio for coding agents
@@ -90,7 +92,7 @@ func run(cmd string, args []string) error {
 			return err
 		}
 		for _, t := range c.Search(*q, *target) {
-			fmt.Printf("%-14s %-24s %-28s [%s]\n", t.ID, t.Category, t.Name, strings.Join(targetNames(t), ", "))
+			fmt.Printf("%-16s %-24s %-34s [%s]\n", t.ID, t.Category, t.Name, strings.Join(targetNames(t), ", "))
 		}
 
 	case "show":
@@ -129,6 +131,7 @@ func run(cmd string, args []string) error {
 		name := fl.String("name", "", "component name, lowercase-with-dashes")
 		target := fl.String("target", "local", "aws, gcp or local")
 		out := fl.String("out", "", "output directory (default ./<name>)")
+		into := fl.String("into", "", "existing repo to add files to; files already there are kept")
 		sets := setFlags{}
 		fl.Var(sets, "set", "template parameter as key=value (repeatable)")
 		if err := fl.Parse(rest); err != nil {
@@ -141,11 +144,18 @@ func run(cmd string, args []string) error {
 		if *out == "" {
 			*out = *name
 		}
-		if err := res.WriteDir(*out); err != nil {
+		if *into != "" {
+			*out = *into
+		}
+		skipped, err := res.WriteDir(*out, *into != "")
+		if err != nil {
 			return err
 		}
-		fmt.Printf("Created %s from %s (target %s) with %d files in %s\n", *name, id, *target, len(res.Files), *out)
-		printChecks(res.Template, *target)
+		fmt.Printf("Created %s from %s (target %s): %d files written to %s\n", *name, id, res.Target, len(res.Files)-len(skipped), *out)
+		for _, p := range skipped {
+			fmt.Printf("  kept existing %s\n", p)
+		}
+		printChecks(res.Template, res.Target)
 		fmt.Printf("Next: cd %s && cat README.md\n", *out)
 
 	case "doctor":
@@ -161,10 +171,29 @@ func run(cmd string, args []string) error {
 		if !ok {
 			return fmt.Errorf("unknown template %q", id)
 		}
-		if _, ok := t.Targets[*target]; !ok {
-			return fmt.Errorf("template %q has no target %q", id, *target)
+		if _, ok := t.ResolveTarget(*target); !ok {
+			return fmt.Errorf("template %q does not support target %q", id, *target)
 		}
 		printChecks(t, *target)
+
+	case "status":
+		dir := "."
+		if len(args) > 0 {
+			dir = args[0]
+		}
+		d, err := engine.Status(c, dir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s: %s (target %s), generated from v%s, catalog has v%s\n",
+			d.Request.Name, d.Request.Template, d.Request.Target, d.LockedVersion, d.CurrentVersion)
+		fmt.Printf("  %d unchanged, %d modified, %d missing\n", d.Unchanged, len(d.Modified), len(d.Missing))
+		for _, p := range d.Modified {
+			fmt.Println("  modified", p)
+		}
+		for _, p := range d.Missing {
+			fmt.Println("  missing ", p)
+		}
 
 	case "serve":
 		addr := fl.String("addr", ":8080", "listen address")

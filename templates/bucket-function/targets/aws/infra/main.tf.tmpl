@@ -1,0 +1,107 @@
+variable "package" {
+  description = "Zip built by `make package`"
+  type        = string
+  default     = "../build/function.zip"
+}
+
+data "aws_caller_identity" "current" {}
+
+# Bucket names are global, so the account id keeps this one unique.
+resource "aws_s3_bucket" "uploads" {
+  bucket = "${var.name}-${data.aws_caller_identity.current.account_id}"
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "uploads" {
+  bucket                  = aws_s3_bucket.uploads.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_iam_role" "fn" {
+  name = "${var.name}-fn"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "logs" {
+  role       = aws_iam_role.fn.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# Least privilege: read objects in this bucket only.
+resource "aws_iam_role_policy" "read" {
+  name = "read-uploads"
+  role = aws_iam_role.fn.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "s3:GetObject"
+      Resource = "${aws_s3_bucket.uploads.arn}/*"
+    }]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "fn" {
+  name              = "/aws/lambda/${var.name}"
+  retention_in_days = 30
+}
+
+resource "aws_lambda_function" "fn" {
+  function_name    = var.name
+  role             = aws_iam_role.fn.arn
+  runtime          = "provided.al2023"
+  handler          = "bootstrap"
+  architectures    = ["arm64"]
+  filename         = var.package
+  source_code_hash = filebase64sha256(var.package)
+  timeout          = 30
+  memory_size      = 256
+
+  depends_on = [aws_cloudwatch_log_group.fn, aws_iam_role_policy_attachment.logs]
+}
+
+resource "aws_lambda_permission" "s3" {
+  statement_id   = "AllowS3Invoke"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.fn.function_name
+  principal      = "s3.amazonaws.com"
+  source_arn     = aws_s3_bucket.uploads.arn
+  source_account = data.aws_caller_identity.current.account_id
+}
+
+resource "aws_s3_bucket_notification" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.fn.arn
+    events              = ["s3:ObjectCreated:*"]
+  }
+
+  depends_on = [aws_lambda_permission.s3]
+}
+
+output "bucket" {
+  value = aws_s3_bucket.uploads.bucket
+}
+
+output "function_name" {
+  value = aws_lambda_function.fn.function_name
+}

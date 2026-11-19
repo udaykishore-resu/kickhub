@@ -1,0 +1,50 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each block runs only if the repo contains that kind of project.
+      - uses: actions/setup-go@v5
+        if: hashFiles('go.mod') != ''
+        with:
+          go-version-file: go.mod
+      - name: Go vet and test
+        if: hashFiles('go.mod') != ''
+        run: go vet ./... && go test -race ./...
+
+      - uses: actions/setup-node@v4
+        if: hashFiles('package.json') != ''
+        with:
+          node-version: lts/*
+      - name: Node install and test
+        if: hashFiles('package.json') != ''
+        run: npm ci && npm test --if-present
+
+      - uses: actions/setup-python@v5
+        if: hashFiles('requirements*.txt', 'pyproject.toml') != ''
+        with:
+          python-version: "3.12"
+      - name: Python install and test
+        if: hashFiles('requirements*.txt', 'pyproject.toml') != ''
+        run: |
+          for f in requirements.txt requirements-dev.txt; do [ -f "$f" ] && pip install -r "$f"; done
+          [ -f pyproject.toml ] && pip install -e . || true
+          pip install pytest && pytest -q
+
+      - name: Terraform format check
+        if: hashFiles('**/*.tf') != ''
+        run: terraform fmt -check -recursive
+
+      - name: Docker build
+        if: hashFiles('Dockerfile') != ''
+        run: docker build -t ${{ github.event.repository.name }}:ci .

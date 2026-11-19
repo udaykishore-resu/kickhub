@@ -1,0 +1,38 @@
+.PHONY: venv test run[[ if eq .Target "local" ]] up down smoke[[ else ]] infra-init infra-plan infra-apply image[[ end ]]
+
+venv:
+	python3 -m venv .venv
+	.venv/bin/pip install -q -r requirements-dev.txt
+
+test: venv
+	.venv/bin/pytest -q
+
+run: venv
+	.venv/bin/uvicorn app.main:app --port 8080 --reload
+[[ if eq .Target "local" ]]
+up:
+	docker compose up --build -d
+
+down:
+	docker compose down
+
+smoke:
+	curl -fsS -X POST localhost:8080/predict -H 'Content-Type: application/json' -d '{"features":[2.0,1.0,0.5]}'
+[[ else ]]
+TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+
+infra-init:
+	terraform -chdir=infra init
+
+infra-plan: infra-init
+	terraform -chdir=infra plan -var image_uri=$(IMAGE_URI)
+
+infra-apply: infra-init
+	terraform -chdir=infra apply -var image_uri=$(IMAGE_URI)
+
+# Usage: make image REPO=<registry url from terraform output>
+image:
+	docker build --platform linux/amd64 -t $(REPO):$(TAG) .
+	docker push $(REPO):$(TAG)
+	@echo "Now run: make infra-apply IMAGE_URI=$(REPO):$(TAG)"
+[[ end ]]

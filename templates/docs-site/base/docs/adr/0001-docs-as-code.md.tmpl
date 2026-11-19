@@ -1,0 +1,17 @@
+# 1. Documentation lives in Git as Markdown
+
+Status: accepted
+
+## Context
+
+Documentation kept in wikis drifts from the systems it describes, because changing it is a separate step from changing the system and nobody reviews it.
+
+## Decision
+
+Documentation is Markdown in this repository. Changes go through pull requests and are published automatically on merge.
+
+## Consequences
+
+- A change to a system and the change to its documentation can be reviewed together.
+- Broken links fail the build.
+- Contributors need Git access, which is a higher bar than a wiki edit button.

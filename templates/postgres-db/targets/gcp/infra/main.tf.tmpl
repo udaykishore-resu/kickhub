@@ -1,0 +1,68 @@
+variable "tier" {
+  type    = string
+  default = "db-custom-1-3840"
+}
+
+variable "deletion_protection" {
+  type    = bool
+  default = true
+}
+
+resource "google_project_service" "sql" {
+  service            = "sqladmin.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_sql_database_instance" "this" {
+  name                = var.name
+  database_version    = "POSTGRES_16"
+  deletion_protection = var.deletion_protection
+
+  settings {
+    tier              = var.tier
+    availability_type = "ZONAL"
+
+    backup_configuration {
+      enabled                        = true
+      point_in_time_recovery_enabled = true
+    }
+
+    # No authorized networks: the only way in is the Cloud SQL Auth Proxy
+    # or a connector, both of which authenticate with IAM and encrypt.
+    ip_configuration {
+      ipv4_enabled = true
+      ssl_mode     = "ENCRYPTED_ONLY"
+    }
+  }
+
+  depends_on = [google_project_service.sql]
+}
+
+resource "google_sql_database" "app" {
+  name     = replace(var.name, "-", "_")
+  instance = google_sql_database_instance.this.name
+}
+
+resource "random_password" "app" {
+  length  = 32
+  special = false
+}
+
+resource "google_sql_user" "app" {
+  name     = "app"
+  instance = google_sql_database_instance.this.name
+  password = random_password.app.result
+}
+
+output "connection_name" {
+  value = google_sql_database_instance.this.connection_name
+}
+
+output "database" {
+  value = google_sql_database.app.name
+}
+
+output "app_password" {
+  value     = random_password.app.result
+  sensitive = true
+}

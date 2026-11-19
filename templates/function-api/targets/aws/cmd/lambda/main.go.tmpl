@@ -1,0 +1,13 @@
+// Command lambda adapts the net/http routes to a Lambda function URL.
+package main
+
+import (
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
+
+	"[[.P.go_module]]/internal/api"
+)
+
+func main() {
+	lambda.Start(httpadapter.NewV2(api.Handler()).ProxyWithContext)
+}
