@@ -1,0 +1,17 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/acme/orders-worker/internal/queue"
+)
+
+func TestHandle(t *testing.T) {
+	if err := handle(context.Background(), queue.Message{ID: "1", Body: "hello"}); err != nil {
+		t.Fatalf("valid message: %v", err)
+	}
+	if err := handle(context.Background(), queue.Message{ID: "2"}); err == nil {
+		t.Fatal("empty body must be rejected so it is retried and dead-lettered")
+	}
+}

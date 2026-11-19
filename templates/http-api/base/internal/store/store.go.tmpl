@@ -1,0 +1,17 @@
+// Package store hides the storage backend behind one interface.
+// The adapter in provider.go is the only target-specific code in this repo.
+package store
+
+import (
+	"context"
+	"errors"
+)
+
+// ErrNotFound is returned when an item does not exist.
+var ErrNotFound = errors.New("item not found")
+
+// Store is the storage contract the HTTP handlers depend on.
+type Store interface {
+	Get(ctx context.Context, id string) (string, error)
+	Put(ctx context.Context, id, value string) error
+}

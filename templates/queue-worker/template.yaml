@@ -1,0 +1,40 @@
+id: queue-worker
+name: Queue consumer worker
+category: Data Processing
+version: 1.0.0
+description: >-
+  Go worker that consumes messages from a queue with a dead-letter queue for
+  poison messages. The handler is written once against a queue interface and
+  runs on SQS, Pub/Sub or a local SQS-compatible broker.
+tags: [go, worker, queue, consumer, terraform, docker]
+parameters:
+  - name: go_module
+    description: Go module path for the new repo
+    default: "github.com/acme/[[.Name]]"
+  - name: aws_region
+    description: AWS region
+    default: us-east-1
+    targets: [aws, local]
+  - name: gcp_project
+    description: GCP project id
+    required: true
+    targets: [gcp]
+  - name: max_deliveries
+    description: Delivery attempts before a message goes to the dead-letter queue
+    default: "5"
+    targets: [aws, gcp]
+targets:
+  aws:
+    summary: SQS queue with dead-letter queue and a least-privilege consumer policy
+    layers: [shared/sqs]
+    resources: [SQS queue, SQS dead-letter queue, IAM policy]
+    requires: [go, docker, terraform, aws]
+  gcp:
+    summary: Pub/Sub topic and subscription with dead-letter topic
+    resources: [Pub/Sub topic, Pub/Sub subscription, Dead-letter topic, Service account]
+    requires: [go, docker, terraform, gcloud]
+  local:
+    summary: docker compose with ElasticMQ (SQS-compatible), no cloud account needed
+    layers: [shared/sqs]
+    resources: [ElasticMQ container, Worker container]
+    requires: [go, docker]

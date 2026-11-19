@@ -1,0 +1,54 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"os"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
+
+type dynamoStore struct {
+	client *dynamodb.Client
+	table  string
+}
+
+// New returns a DynamoDB-backed Store. Set AWS_ENDPOINT_URL to point the
+// SDK at DynamoDB Local; no code change is needed.
+func New(ctx context.Context) (Store, error) {
+	table := os.Getenv("TABLE_NAME")
+	if table == "" {
+		return nil, errors.New("TABLE_NAME is not set")
+	}
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &dynamoStore{client: dynamodb.NewFromConfig(cfg), table: table}, nil
+}
+
+func key(id string) map[string]types.AttributeValue {
+	return map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: id}}
+}
+
+func (s *dynamoStore) Get(ctx context.Context, id string) (string, error) {
+	out, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{TableName: aws.String(s.table), Key: key(id)})
+	if err != nil {
+		return "", err
+	}
+	v, ok := out.Item["value"].(*types.AttributeValueMemberS)
+	if !ok {
+		return "", ErrNotFound
+	}
+	return v.Value, nil
+}
+
+func (s *dynamoStore) Put(ctx context.Context, id, value string) error {
+	item := key(id)
+	item["value"] = &types.AttributeValueMemberS{Value: value}
+	_, err := s.client.PutItem(ctx, &dynamodb.PutItemInput{TableName: aws.String(s.table), Item: item})
+	return err
+}

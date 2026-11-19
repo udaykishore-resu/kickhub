@@ -1,0 +1,51 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"os"
+
+	"cloud.google.com/go/firestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+type firestoreStore struct {
+	coll *firestore.CollectionRef
+}
+
+// New returns a Firestore-backed Store. Set FIRESTORE_EMULATOR_HOST to use
+// the Firestore emulator; no code change is needed.
+func New(ctx context.Context) (Store, error) {
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	database := os.Getenv("FIRESTORE_DATABASE")
+	if project == "" || database == "" {
+		return nil, errors.New("GOOGLE_CLOUD_PROJECT and FIRESTORE_DATABASE must be set")
+	}
+	client, err := firestore.NewClientWithDatabase(ctx, project, database)
+	if err != nil {
+		return nil, err
+	}
+	return &firestoreStore{coll: client.Collection("items")}, nil
+}
+
+func (s *firestoreStore) Get(ctx context.Context, id string) (string, error) {
+	snap, err := s.coll.Doc(id).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	v, err := snap.DataAt("value")
+	if err != nil {
+		return "", ErrNotFound
+	}
+	str, _ := v.(string)
+	return str, nil
+}
+
+func (s *firestoreStore) Put(ctx context.Context, id, value string) error {
+	_, err := s.coll.Doc(id).Set(ctx, map[string]any{"value": value})
+	return err
+}

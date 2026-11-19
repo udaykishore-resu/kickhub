@@ -1,0 +1,40 @@
+package queue
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"os"
+
+	"cloud.google.com/go/pubsub"
+)
+
+type pubsubQueue struct {
+	sub *pubsub.Subscription
+}
+
+// New returns a Pub/Sub-backed Queue. Set PUBSUB_EMULATOR_HOST to use the
+// Pub/Sub emulator; no code change is needed.
+func New(ctx context.Context) (Queue, error) {
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	subscription := os.Getenv("SUBSCRIPTION")
+	if project == "" || subscription == "" {
+		return nil, errors.New("GOOGLE_CLOUD_PROJECT and SUBSCRIPTION must be set")
+	}
+	client, err := pubsub.NewClient(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	return &pubsubQueue{sub: client.Subscription(subscription)}, nil
+}
+
+func (q *pubsubQueue) Run(ctx context.Context, h Handler) error {
+	return q.sub.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
+		if err := h(ctx, Message{ID: m.ID, Body: string(m.Data)}); err != nil {
+			slog.Warn("handler failed", "id", m.ID, "err", err)
+			m.Nack() // redelivered, then dead-lettered
+			return
+		}
+		m.Ack()
+	})
+}

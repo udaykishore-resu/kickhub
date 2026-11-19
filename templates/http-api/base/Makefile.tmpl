@@ -1,0 +1,44 @@
+.PHONY: tidy build test vet[[ if eq .Target "local" ]] up down smoke[[ else ]] infra-init infra-plan infra-apply image[[ end ]]
+
+go.sum: go.mod
+	go mod tidy
+
+tidy:
+	go mod tidy
+
+build: go.sum
+	go build ./...
+
+test: go.sum
+	go test ./...
+
+vet: go.sum
+	go vet ./...
+[[ if eq .Target "local" ]]
+up: go.sum
+	docker compose up --build -d
+
+down:
+	docker compose down -v
+
+smoke:
+	curl -fsS -X PUT localhost:8080/items/hello -d world
+	curl -fsS localhost:8080/items/hello
+[[ else ]]
+TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+
+infra-init:
+	terraform -chdir=infra init
+
+infra-plan: infra-init
+	terraform -chdir=infra plan -var image_uri=$(IMAGE_URI)
+
+infra-apply: infra-init
+	terraform -chdir=infra apply -var image_uri=$(IMAGE_URI)
+
+# Usage: make image REPO=<registry url from terraform output>
+image: go.sum
+	docker build --platform linux/amd64 -t $(REPO):$(TAG) .
+	docker push $(REPO):$(TAG)
+	@echo "Now run: make infra-apply IMAGE_URI=$(REPO):$(TAG)"
+[[ end ]]

@@ -1,0 +1,34 @@
+id: object-store
+name: Object storage bucket
+category: Individual Resources
+version: 1.0.0
+description: >-
+  A private, versioned, encrypted bucket as infrastructure only. Use it when
+  a component just needs storage and no application code.
+tags: [storage, bucket, s3, gcs, terraform]
+parameters:
+  - name: aws_region
+    description: AWS region
+    default: us-east-1
+    targets: [aws]
+  - name: gcp_project
+    description: GCP project id
+    required: true
+    targets: [gcp]
+  - name: gcp_location
+    description: GCS bucket location
+    default: US
+    targets: [gcp]
+targets:
+  aws:
+    summary: S3 bucket with versioning, encryption and public access blocked
+    resources: [S3 bucket]
+    requires: [terraform, aws]
+  gcp:
+    summary: Cloud Storage bucket with versioning and uniform access
+    resources: [Cloud Storage bucket]
+    requires: [terraform, gcloud]
+  local:
+    summary: docker compose with MinIO (S3-compatible), no cloud account needed
+    resources: [MinIO container]
+    requires: [docker]

@@ -1,0 +1,28 @@
+# Local S3-compatible bucket. Point any S3 SDK at http://localhost:9000
+# with access key "local" and secret "localsecret".
+services:
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: local
+      MINIO_ROOT_PASSWORD: localsecret
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # web console
+    volumes:
+      - data:/data
+
+  init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        until mc alias set local http://minio:9000 local localsecret >/dev/null 2>&1; do sleep 1; done;
+        mc mb --ignore-existing local/[[.Name]];
+        mc version enable local/[[.Name]]
+
+volumes:
+  data:

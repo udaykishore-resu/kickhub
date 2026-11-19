@@ -1,0 +1,49 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"[[.P.go_module]]/internal/store"
+)
+
+type memStore map[string]string
+
+func (m memStore) Get(_ context.Context, id string) (string, error) {
+	v, ok := m[id]
+	if !ok {
+		return "", store.ErrNotFound
+	}
+	return v, nil
+}
+
+func (m memStore) Put(_ context.Context, id, value string) error {
+	m[id] = value
+	return nil
+}
+
+func TestItemsRoundTrip(t *testing.T) {
+	h := routes(memStore{}, slog.Default())
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/items/a", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing item: got %d, want 404", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/items/a", strings.NewReader("hello")))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("put: got %d, want 204", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/items/a", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "hello") {
+		t.Fatalf("get: got %d %q", rec.Code, rec.Body.String())
+	}
+}
