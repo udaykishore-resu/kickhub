@@ -4,19 +4,6 @@
 
 **GitHub topics:** `golang` `scaffolding` `developer-portal` `platform-engineering` `internal-developer-platform` `terraform` `aws` `gcp` `docker-compose` `mcp` `templates` `golden-path`
 
-## Why it exists
-
-Internal developer portals usually offer a grid of approved patterns that each create a repo for one cloud. kickhub keeps that model and changes six things:
-
-| Typical portal | kickhub |
-|---|---|
-| One cloud per template | One template, up to three targets: `aws`, `gcp`, `local` |
-| You see the repo after it is created | Preview every file before anything is created |
-| Local run is left to the developer | The `local` target runs with `docker compose`, no cloud account |
-| The repo forgets where it came from | `.kickhub.yaml` records template, version and parameters |
-| Nobody knows which repos drifted | `kickhub status` shows what changed since generation |
-| New repos only | `-into` adds a component to an existing repo and never overwrites |
-
 ## Quick start
 
 ```sh
